@@ -95,22 +95,6 @@ function showStruts(points, faces, strutProfile) {
     }
   }
   return objects;
-
-
-  var startPointIndex = face[i];
-  var endPointIndex = face[(i + 1) % 3];
-  // Find the associated edge
-  var edgeKey = edgeKeyFn(startPointIndex, endPointIndex);
-  // Has this edge already been handled?
-  let splitPointIndex = edgesMap.get(edgeKey);
-  if (splitPointIndex === undefined) {
-    //console.log("creating split point between " + startPointIndex + " and " + endPointIndex);
-    splitPoint = createSplitPoint(points[startPointIndex], points[endPointIndex]);
-    points.push(splitPoint);
-    splitPointIndex = points.length - 1;
-    edgesMap.set(edgeKey, splitPointIndex);
-  }
-  splitPointIndexes.push(splitPointIndex);
 }
 
 function showFaces(points, faces) {
@@ -154,6 +138,9 @@ function subdivideFaces(points, faces, newFaces) {
     var face = faces[faceIndex];
     subdivideFace(points, face, newFaces, edgesMap, edgeKeyFn);
   }
+
+  console.log("point count: " + points.length);
+  console.log("face count: " + newFaces.length);
 }
 
 // startPoint and endPoint are an array holding the x,y,z coordinates each.
@@ -208,33 +195,65 @@ function main() {
   var points = data[0];
   var faces = data[1];
 
-  var newFaces = [];
-  subdivideFaces(points, faces, newFaces);
   console.log("point count: " + points.length);
-  console.log("face count: " + newFaces.length);
+  console.log("face count: " + faces.length);
+
+  var subdivisionIterationCount = 1;
+  for (var i = 0; i < subdivisionIterationCount; i++) {
+    var newFaces = [];
+    subdivideFaces(points, faces, newFaces);
+    faces = newFaces;
+  }
 
   // Profile dimensions for a strut of length 1; the profile will be scaled
   // based on the actual strut length.
-  let tBarSpec = {b: 0.2, h: 0.3, t1: 0.02, t2: 0.05}
+  let tBarSpec = {b: 0.1, h: 0.3, t1: 0.05, t2: 0.01}
   var strutProfile = createTBarProfile(tBarSpec);
 
-  var strutObjects = showStruts(points, newFaces, strutProfile);
+  var strutObjects = showStruts(points, faces, strutProfile);
+
   console.log("edge count: " + strutObjects.length);
-  objects = objects.concat(strutObjects);
+
+  var shaveOff = false;
+  if (shaveOff) {
+    var rawGlobe = union(strutObjects);
+    //objects.push(rawGlobe);
+
+    // Shave off the parts of the struts that poke out of the corners/
+    var innerSphere = CSG.sphere({
+      center: [0, 0, 0],
+      radius: 1,
+      resolution: 32        // optional
+    });
+    var outerSphere = CSG.sphere({
+      center: [0, 0, 0],
+      radius: 2,
+      resolution: 32        // optional
+    });
+    var shell = outerSphere.subtract(innerSphere);
+    //objects.push(shell);
+
+    var shavedGlobe = rawGlobe.subtract(shell);
+    objects.push(shavedGlobe);
+  } else {
+    objects = objects.concat(strutObjects);
+  }
+
 
   //objects.push(showSolid(points, newFaces));
   //objects.push(cylinder({start: [0,0,-1], end: [0,0,1], fn:fn, r: 0.02}));
+  if (false) {
+    var radius = 0.05;
+    objects.push(CSG.sphere({center: points[3], radius: radius}).setColor([0,0,1,1]));
+    objects.push(CSG.sphere({center: points[0], radius: radius}).setColor([0,0,1,0.7]));
+    objects.push(CSG.sphere({center: points[4], radius: radius}).setColor([0,0,1,0.4]));
 
-  var radius = 0.05;
-  objects.push(CSG.sphere({center: points[3], radius: radius}).setColor([0,0,1,1]));
-  objects.push(CSG.sphere({center: points[0], radius: radius}).setColor([0,0,1,0.7]));
-  objects.push(CSG.sphere({center: points[4], radius: radius}).setColor([0,0,1,0.4]));
+    objects.push(CSG.sphere({center: points[12], radius: radius}).setColor([1,0,0,1]));
+    objects.push(CSG.sphere({center: points[13], radius: radius}).setColor([1,0,0,0.7]));
+    objects.push(CSG.sphere({center: points[14], radius: radius}).setColor([1,0,0,0.4]));
 
-  objects.push(CSG.sphere({center: points[12], radius: radius}).setColor([1,0,0,1]));
-  objects.push(CSG.sphere({center: points[13], radius: radius}).setColor([1,0,0,0.7]));
-  objects.push(CSG.sphere({center: points[14], radius: radius}).setColor([1,0,0,0.4]));
-
-  //objects.push(showFaces(points, newFaces.slice(0,3)));
+    //objects.push(showFaces(points, newFaces.slice(0,3)));
+  }
 
   return objects;
 }
